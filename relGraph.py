@@ -1,4 +1,5 @@
 import pickle
+from xmlrpc.client import boolean
 from cv2 import VideoCapture
 import numpy as np
 import networkx as nx
@@ -9,6 +10,7 @@ from neo4j import GraphDatabase
 import logging
 from neo4j.exceptions import ServiceUnavailable
 
+from wikificationTest import WikificationTest
 class vertex:
     def __init__(self, label:int, data:str, segment:int, serial:str):
         #label: 노드의 종류를 나타냄, 1:컴포넌트, 2:비디오 세그먼트, 3:유저
@@ -36,7 +38,7 @@ def getRelGraph(result:list, videoAdress:list):
     #videoAdress: 영상의 주소가 result에 들어있는 순서대로 저장되어있는 리스트
     #
     #딕셔너리 길이 = 16333244
-    with open("ComTitleToId.pkl","rb") as inpf:
+    with open("C:/Users/MY/.vscode/tt/Wikification_web/Wikification_web/ComTitleToId.pkl","rb") as inpf:
         title2IdDict = pickle.load(inpf)
     
     #컴포넌트 개수는 딕셔너리 길이와 같다
@@ -52,12 +54,12 @@ def getRelGraph(result:list, videoAdress:list):
     videoCount = 0
     vidserial = 0
     for video in result:
-        
+        videoList.append(list())
         for seg in video:
-            segCount += 1
+            
             #리스트에 비디오 노드를 추가
             #node4j 테스트용으로 vidserial추가해서 그래프입력할때에 번호 알 수 있게 설정
-            videoList.append(vertex(2,videoAdress[videoCount],segCount,"v"+str(vidserial)))
+            videoList[videoCount].append(vertex(2,videoAdress[videoCount],segCount,"v"+str(vidserial)))
             vidserial+=1
             for compo in seg:
                 #구간 별로 컴포넌트 노드 추가
@@ -77,63 +79,15 @@ def getRelGraph(result:list, videoAdress:list):
 
                 #컴포넌트 노드와 영상 노드를 연결
                 #가중치는 현재 없다고 가정 이후에 상의를 통해 가중치값도 받아서 엣지객체로 만들어 넣어줄것
-                n.edgeList.append(videoList[videoCount])
-                videoList[len(videoList) - 1].edgeList.append(n)
-
+                n.edgeList.append(videoList[videoCount][segCount])
+                videoList[videoCount][segCount].edgeList.append(n)
+            segCount += 1
         videoCount += 1    
         segCount = 0
         
 
     return componentList, videoList
 
-def visualize(videoList:list, componentList:list):
-    g = nx.DiGraph()
-    vidNode = list()
-    compoNode = list()
-    for node in videoList:
-        #g.add_node(node.data, color = "r")
-        vidNode.append(str(node.data +"_"+ str(node.segment)))
-
-    idList = []
-    for node in componentList:
-        idList.append(node.data)
-
-    #shell_layout에 필요한 리스트
-    #멘션노드와 컨셉노드로 구분
-    for node in componentList:
-        compoNode.append(node.data)
-    shellList = [vidNode,compoNode]
-
-    for node in videoList:
-        for edge in node.edgeList:
-            g.add_edge(str(node.data +"_"+ str(node.segment)),edge.data)    
-    for node in componentList:
-        for edge in node.edgeList:
-            g.add_edge(node.data,str(edge.data+"_"+ str(edge.segment)))    
-    #이분그래프
-    nx.draw(g, with_labels = True,node_size = 200, font_size = 10, pos=nx.bipartite_layout(g,vidNode))
-
-    #순회 그래프, 원형 그래프
-    #nx.draw(g, with_labels = True,node_size = 200, font_size = 10, pos=nx.circular_layout(g))
-
-    #spring
-    #nx.draw(g, with_labels = True,node_size = 200, font_size = 10, pos=nx.spring_layout(g))
-
-    #소용돌이
-    #nx.draw(g, with_labels = True,node_size = 200, font_size = 10, pos=nx.spiral_layout(g))
-
-    #
-    #nx.draw(g, with_labels = True,node_size = 200, font_size = 10, pos=nx.kamada_kawai_layout(g))
-
-    #랜덤
-    #nx.draw(g, with_labels = True,node_size = 200, font_size = 10, pos=nx.random_layout(g))
-
-    #shell
-    #nx.draw(g, with_labels = True,node_size = 200, font_size = 10, pos=nx.shell_layout(g,shellList))
-
-    #자동
-    #nx.draw(g, with_labels = True, node_size = 200, font_size = 10)
-    plt.show()
 class App:
     
     def __init__(self, uri, user, password):
@@ -143,47 +97,82 @@ class App:
         # Don't forget to close the driver connection when you are finished with it
         self.driver.close()
 
-    def create_graph(self, componantList, videoList):
+    def create_graph(self, componentList, videoList):
         with self.driver.session(database="neo4j") as session:
             # Write transactions allow the driver to handle retries and transient errors
             result = session.write_transaction(
-                self._create_graph, componantList, videoList)
+                self._create_graph, componentList, videoList)
             
     @staticmethod
-    def _create_graph(tx, componantList, videoList):
+    def _create_graph(tx, componentList, videoList):
         #자체제작 함수
 
         #모든 컴포넌트 노드 생성
-        for componant in componantList:
-            query = "CREATE ("+componant.nodeSerial+":KnowledgeComponant { data: $componant_data }) "
-            tx.run(query,componant_data = componant.data)
+        for component in componentList:
+            query = (
+            "MATCH (c:KnowledgeComponent) "
+            "WHERE c.data = $component_name "
+            "RETURN c.data AS name"
+            )
+            isExist = False
+            result = tx.run(query, component_name=component.data)
+            for row in result:
+                if len(row) >0:
+                    isExist = True
+            
+            if isExist:
+                continue;
+            query = "CREATE (c"+":KnowledgeComponent { data: $component_data }) "
+            tx.run(query,component_data = component.data)
 
         #모든 비디오 노드 생성    
-        for video in videoList:
-            query = "CREATE ("+video.nodeSerial+":Video { data: $video_data }) "
-            tx.run(query,video_data = video.nodeSerial)
+        for segmentList in videoList:
+            query = (
+            "MATCH (v:Video) "
+            "WHERE v.data = $video_address "
+            "RETURN v.data AS address"
+            )
+            result = tx.run(query, video_address=segmentList[0].data)
+            isExist = False
+            for row in result:
+                if len(row) >0:
+                    isExist = True
+
+            
+            if isExist:
+                continue;
+            query = "CREATE (v"+":Video { data: $video_data }) "
+            tx.run(query,video_data = segmentList[0].data)
+            for segment in segmentList:
+                query = (
+                    "MATCH (v"+":Video { data: $video_data })"
+                    "CREATE (s"+":Segment { data: $segment_data }) "
+                    "CREATE (s)-[:PartOf]->(v)"
+                )
+                tx.run(query,segment_data = str(segment.segment),video_data = segment.data)
 
         #비디오노드 순회하면서 비디오노드와 컴포넌트 노드를 연결
-        for video in videoList:
-            for compo in video.edgeList:
-                query = (
-                    "MATCH (v: Video {data: $video_data }), (c: KnowledgeComponant {data: $componant_data})"
-                    "CREATE (v)-[:Related]->(c)"
-                    "RETURN v, c"
-                )
-                result = tx.run(query,video_data = video.nodeSerial, componant_data = compo.data)
-                
-                #비디오노드와 컴포넌트 노드 연결시키면서 콘솔창에 출력
-                try:
-                    for row in result:
-                        print("Created relationship between video:{v}, componant:{c}".format(
-                        v=row["v"]["data"], c=row["c"]["data"]))
-                
-                # Capture any errors along with the query and data for traceability
-                except ServiceUnavailable as exception:
-                    logging.error("{query} raised an error: \n {exception}".format(
-                        query=query, exception=exception))
-                    raise
+        for segmentList in videoList:
+            for segment in segmentList:
+                for compo in segment.edgeList:
+                    query = (
+                        "MATCH (s: Segment {data: $segment_data})-[:PartOf]->(v: Video {data: $video_address}), (c: KnowledgeComponent{data: $component_data })"
+                        "CREATE (c)-[:AppearedIn]->(s)"
+                        "RETURN s, c"
+                    )
+                    result = tx.run(query,segment_data = str(segment.segment), component_data = compo.data, video_address = segment.data)
+                    
+                    #비디오노드와 컴포넌트 노드 연결시키면서 콘솔창에 출력
+                    try:
+                        for row in result:
+                            print("Created relationship between video:{s}, component:{c}".format(
+                            s=row["s"]["data"], c=row["c"]["data"]))
+                    
+                    # Capture any errors along with the query and data for traceability
+                    except ServiceUnavailable as exception:
+                        logging.error("{query} raised an error: \n {exception}".format(
+                            query=query, exception=exception))
+                        raise
 
     def find_person(self, person_name):
         with self.driver.session(database="neo4j") as session:
@@ -205,6 +194,18 @@ class App:
         with self.driver.session(database="neo4j") as session:
             result = session.read_transaction(self._delete_all_node_and_relationship)
     
+    
+    def is_exist_component(tx, component_name):
+        query = (
+            "MATCH (c:KnowledgeComponent) "
+            "WHERE c.data = $component_name "
+            "RETURN c.data AS name"
+        )
+        result = tx.run(query, component_name=component_name)
+        for row in result:
+            if len(row) >0:
+                return True
+        return False
     @staticmethod
     def _delete_all_node_and_relationship(tx):
         query = (
@@ -213,27 +214,32 @@ class App:
         tx.run(query)
 
 if __name__ == '__main__':   
-    #그래프 만드는거 테스트
-    #r: 각 영상별 세그먼트별 knowledge componant리스트(3차원 리스트)
+    #vl: 영상의 id
+    vl = ['d-o3eB9sfls','NaL_Cb42WyY','jsYwFizhncE','brU5yLm9DZM','8GPy_UMV-08']
+    #r: 각 영상별 세그먼트별 knowledge component리스트(3차원 리스트)
+    r = [[['Basel','Lighthouse','Retina','Leonhard_Euler','Geometry'],['Lighthouse','Hypotenuse','Tangent','Circumference','Mathematician'],['Lighthouse','Geometry','Circumference','Hypotenuse','Circle'],['Lighthouse','Geometry','Integer','Algebra','Animation']],
+    [['Riemann_zeta_function','Integer','Calculus','Radius','Gottfried_Wilhelm_Leibniz'],['Integer','Gaussian_integer','Normal_distribution','Complex_conjugate','Magnitude_(astronomy)'],['Integer','Normal_distribution','Gaussian_integer','Complex_conjugate','Square_root'],['Integer','Normal_distribution','Complex_conjugate','Radius','Gaussian_integer'],['Divisor','Integer_factorization','Gaussian_integer','Normal_distribution','Function_(mathematics)'],['Riemann_zeta_function','Integer','Gaussian_integer','Divisor','Normal_distribution'],['Mathematical_optimization','Universe','Software_engineering','Scheduling_(computing)','Page_(computer_memory)']],
+    [['Ellipse','Kinetic_energy','Momentum','Energy','Algorithm'],['Integer','Geometry','Momentum','Radian','Inscribed_angle'],['Geometry','Inverse_trigonometric_functions','Tangent','Integer','Square_root']],
+    [['Optics','Croquet','Geometry','Momentum','Analogy'],['Kinetic_energy','Dot_product','Sine_and_cosine','Momentum','Magnitude_(astronomy)'],['Beam_(nautical)','Draft_(hull)','Light_cruiser','Port_and_starboard','Laser']],
+    [['Basel','Geometry','Lighthouse','Mathematics','Inverse-square_law'],['Polynomial','Integer','Magnitude_(astronomy)','Lighthouse','Complex_number'],['Lighthouse','Polynomial','Chord_(aeronautics)','Chord_(music)','Mathematician'],['Lighthouse','Lighthouse_keeper','Infinity','Mathematician','Arithmetic'],['Lighthouse','Sine_and_cosine','Chord_(aeronautics)','Clockwise','Integer'],['Blog','Betting_in_poker','Balvanera','Angle','Want']]]
+    #test = WikificationTest()
+    #test.nonWebExecute('https://www.youtube.com/watch?v=8GPy_UMV-08', 300.0)
     
-    r = [[['Huilongguan', 'Huilongguan', 'Huilongguan', 'Huilongguan', 'Huilongguan'], ['Girolamo_Tartarotti', 'Girolamo_Tartarotti', 'Girolamo_Tartarotti', 'Girolamo_Tartarotti', 'Girolamo_Tartarotti'], ['A', 'A', 'A', 'A', 'A'],['A', 'A', 'A', 'A', 'A']],
-    [['Bread', 'Bread', 'Bread', 'Bread', 'Bread'], ['Bread', 'Bread', 'Bread', 'Bread', 'Bread'], ['Staple_food', 'Staple_food', 'Staple_food', 'Staple_food', 'Staple_food'], ['Staple_food', 'Staple_food', 'Staple_food', 'Staple_food', 'Staple_food']],
-    [['Meat', 'Meat', 'Meat', 'Meat', 'Meat'], ['Meat', 'Meat', 'Meat', 'Meat', 'Fat'],['Fat', 'Fat', 'Fat', 'Fat', 'Fat']],
-    [['Ester', 'Glyceride', 'Vegetable_oil', 'Olive_oil', 'Candy_cigarette'], ['Ester', 'Glyceride', 'Vegetable_oil', 'Olive_oil', 'Popeye']],
-    [['Ester', 'Glyceride', 'Vegetable_oil', 'Popeye', 'Candy_cigarette'], ['Ester', 'Glyceride', 'Popeye', 'Candy_cigarette', 'Candy'], ['Ester', 'Vegetable_oil', 'Olive_oil', 'Popeye', 'Candy_cigarette']],
-    [['Confectionery', 'Confectionery', 'Sweetbread', 'Pork', 'Cooking'], ['Confectionery', 'Sweetbread', 'Pork', 'Cooking', 'Oven']]]
-    
-    #vl: 영상의 링크 혹은 제목의 리스트
-    vl = ['vid1', 'vid2', 'vid3', 'vid4', 'vid5', 'vid6']
-    
+    print("start")
     #관계 그래프 작성
     cl, vvl = getRelGraph(r,vl)
-    
-    # Aura queries use an encrypted connection using the "neo4j+s" URI scheme
+
+    print("insert in neo4j")
     uri = "neo4j+s://8a488d74.databases.neo4j.io"
     user = "neo4j"
     password = "nZjn1bV_6nEPqDMs6l4f5rAnOo81peh7osW0X5fjcVw"
     app = App(uri, user, password)
-    #app.delete_all_data()
+
+    #데이터 전체 삭제
+    app.delete_all_data()
+
+    #neo4j에 그래프 작성
     app.create_graph(cl,vvl)
     app.close()
+    print("end")
+    
