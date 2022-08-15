@@ -156,17 +156,29 @@ class App:
             for segment in segmentList:
                 for compo in segment.edgeList:
                     query = (
+                        "MATCH (s: Segment {data: $segment_data})-[:PartOf]->(v: Video {data: $video_address}), (c: KnowledgeComponent{data: $component_data })-[:AppearedIn]->(s)"
+                        
+                        "RETURN c"
+                    )
+                    result = tx.run(query,segment_data = str(segment.segment), component_data = compo.data, video_address = segment.data)
+                    isExist = False
+                    for row in result:
+                        if len(row) >0:
+                            isExist = True
+                    if isExist:
+                        continue;
+                    query = (
                         "MATCH (s: Segment {data: $segment_data})-[:PartOf]->(v: Video {data: $video_address}), (c: KnowledgeComponent{data: $component_data })"
                         "CREATE (c)-[:AppearedIn]->(s)"
-                        "RETURN s, c"
+                        "RETURN s, c, v"
                     )
                     result = tx.run(query,segment_data = str(segment.segment), component_data = compo.data, video_address = segment.data)
                     
                     #비디오노드와 컴포넌트 노드 연결시키면서 콘솔창에 출력
                     try:
                         for row in result:
-                            print("Created relationship between video:{s}, component:{c}".format(
-                            s=row["s"]["data"], c=row["c"]["data"]))
+                            print("Created relationship between video:{v}, segment:{s}, component:{c}".format(
+                            s=row["s"]["data"], c=row["c"]["data"], v=row["v"]["data"]))
                     
                     # Capture any errors along with the query and data for traceability
                     except ServiceUnavailable as exception:
@@ -213,15 +225,36 @@ class App:
         )
         tx.run(query)
 
+def insertIntoNeo4j(addressList, resultList):
+    #addressList: 영상의 id의 리스트
+    #resultList: 각 영상별 세그먼트별 knowledge component리스트(3차원 리스트)
+    videoList, componentList = getRelGraph(resultList,addressList)
+    print("insert in neo4j")
+    #uri = "neo4j+s://8a488d74.databases.neo4j.io"
+    uri = "neo4j+s://9bon.org:17687"
+    user = "neo4j"
+    #password = "nZjn1bV_6nEPqDMs6l4f5rAnOo81peh7osW0X5fjcVw"
+    password = "sunset-group"
+    app = App(uri, user, password)
+
+    #데이터 전체 삭제
+    #필요한 경우에만 활성화 시킬것
+    #app.delete_all_data()
+
+    #neo4j에 그래프 작성
+    app.create_graph(cl,vvl)
+    app.close()
+
 if __name__ == '__main__':   
     #vl: 영상의 id
-    vl = ['d-o3eB9sfls','NaL_Cb42WyY','jsYwFizhncE','brU5yLm9DZM','8GPy_UMV-08']
+    vl = ['d-o3eB9sfls','NaL_Cb42WyY','jsYwFizhncE','brU5yLm9DZM','8GPy_UMV-08','test']
     #r: 각 영상별 세그먼트별 knowledge component리스트(3차원 리스트)
     r = [[['Basel','Lighthouse','Retina','Leonhard_Euler','Geometry'],['Lighthouse','Hypotenuse','Tangent','Circumference','Mathematician'],['Lighthouse','Geometry','Circumference','Hypotenuse','Circle'],['Lighthouse','Geometry','Integer','Algebra','Animation']],
     [['Riemann_zeta_function','Integer','Calculus','Radius','Gottfried_Wilhelm_Leibniz'],['Integer','Gaussian_integer','Normal_distribution','Complex_conjugate','Magnitude_(astronomy)'],['Integer','Normal_distribution','Gaussian_integer','Complex_conjugate','Square_root'],['Integer','Normal_distribution','Complex_conjugate','Radius','Gaussian_integer'],['Divisor','Integer_factorization','Gaussian_integer','Normal_distribution','Function_(mathematics)'],['Riemann_zeta_function','Integer','Gaussian_integer','Divisor','Normal_distribution'],['Mathematical_optimization','Universe','Software_engineering','Scheduling_(computing)','Page_(computer_memory)']],
     [['Ellipse','Kinetic_energy','Momentum','Energy','Algorithm'],['Integer','Geometry','Momentum','Radian','Inscribed_angle'],['Geometry','Inverse_trigonometric_functions','Tangent','Integer','Square_root']],
     [['Optics','Croquet','Geometry','Momentum','Analogy'],['Kinetic_energy','Dot_product','Sine_and_cosine','Momentum','Magnitude_(astronomy)'],['Beam_(nautical)','Draft_(hull)','Light_cruiser','Port_and_starboard','Laser']],
-    [['Basel','Geometry','Lighthouse','Mathematics','Inverse-square_law'],['Polynomial','Integer','Magnitude_(astronomy)','Lighthouse','Complex_number'],['Lighthouse','Polynomial','Chord_(aeronautics)','Chord_(music)','Mathematician'],['Lighthouse','Lighthouse_keeper','Infinity','Mathematician','Arithmetic'],['Lighthouse','Sine_and_cosine','Chord_(aeronautics)','Clockwise','Integer'],['Blog','Betting_in_poker','Balvanera','Angle','Want']]]
+    [['Basel','Geometry','Lighthouse','Mathematics','Inverse-square_law'],['Polynomial','Integer','Magnitude_(astronomy)','Lighthouse','Complex_number'],['Lighthouse','Polynomial','Chord_(aeronautics)','Chord_(music)','Mathematician'],['Lighthouse','Lighthouse_keeper','Infinity','Mathematician','Arithmetic'],['Lighthouse','Sine_and_cosine','Chord_(aeronautics)','Clockwise','Integer'],['Blog','Betting_in_poker','Balvanera','Angle','Want']],
+    [['Ester', 'Glyceride', 'Vegetable_oil', 'Popeye', 'Candy_cigarette'], ['Ester', 'Glyceride', 'Popeye', 'Candy_cigarette', 'Candy'], ['Ester', 'Vegetable_oil', 'Olive_oil', 'Popeye', 'Candy_cigarette']]]
     #test = WikificationTest()
     #test.nonWebExecute('https://www.youtube.com/watch?v=8GPy_UMV-08', 300.0)
     
@@ -230,9 +263,11 @@ if __name__ == '__main__':
     cl, vvl = getRelGraph(r,vl)
 
     print("insert in neo4j")
-    uri = "neo4j+s://8a488d74.databases.neo4j.io"
+    #uri = "neo4j+s://8a488d74.databases.neo4j.io"
+    uri = "neo4j+s://9bon.org:17687"
     user = "neo4j"
-    password = "nZjn1bV_6nEPqDMs6l4f5rAnOo81peh7osW0X5fjcVw"
+    #password = "nZjn1bV_6nEPqDMs6l4f5rAnOo81peh7osW0X5fjcVw"
+    password = "sunset-group"
     app = App(uri, user, password)
 
     #데이터 전체 삭제
