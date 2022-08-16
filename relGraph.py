@@ -204,7 +204,7 @@ class App:
 
     def delete_all_data(self):
         with self.driver.session(database="neo4j") as session:
-            result = session.read_transaction(self._delete_all_node_and_relationship)
+            result = session.write_transaction(self._delete_all_node_and_relationship)
     
     
     def is_exist_component(tx, component_name):
@@ -228,10 +228,10 @@ class App:
 def insertIntoNeo4j(addressList, resultList):
     #addressList: 영상의 id의 리스트
     #resultList: 각 영상별 세그먼트별 knowledge component리스트(3차원 리스트)
-    videoList, componentList = getRelGraph(resultList,addressList)
-    print("insert in neo4j")
+    componentList, videoList = getRelGraph(resultList,addressList)
+    print("insert into neo4j")
     #uri = "neo4j+s://8a488d74.databases.neo4j.io"
-    uri = "neo4j+s://9bon.org:17687"
+    uri = "neo4j://9bon.org:17687"
     user = "neo4j"
     #password = "nZjn1bV_6nEPqDMs6l4f5rAnOo81peh7osW0X5fjcVw"
     password = "sunset-group"
@@ -239,42 +239,25 @@ def insertIntoNeo4j(addressList, resultList):
 
     #데이터 전체 삭제
     #필요한 경우에만 활성화 시킬것
-    #app.delete_all_data()
+    app.delete_all_data()
 
     #neo4j에 그래프 작성
-    app.create_graph(cl,vvl)
+    app.create_graph(componentList,videoList)
     app.close()
 
 if __name__ == '__main__':   
     #vl: 영상의 id
-    vl = ['d-o3eB9sfls','NaL_Cb42WyY','jsYwFizhncE','brU5yLm9DZM','8GPy_UMV-08','test']
+    vl = ['d-o3eB9sfls','NaL_Cb42WyY','jsYwFizhncE','brU5yLm9DZM','8GPy_UMV-08']
     #r: 각 영상별 세그먼트별 knowledge component리스트(3차원 리스트)
     r = [[['Basel','Lighthouse','Retina','Leonhard_Euler','Geometry'],['Lighthouse','Hypotenuse','Tangent','Circumference','Mathematician'],['Lighthouse','Geometry','Circumference','Hypotenuse','Circle'],['Lighthouse','Geometry','Integer','Algebra','Animation']],
     [['Riemann_zeta_function','Integer','Calculus','Radius','Gottfried_Wilhelm_Leibniz'],['Integer','Gaussian_integer','Normal_distribution','Complex_conjugate','Magnitude_(astronomy)'],['Integer','Normal_distribution','Gaussian_integer','Complex_conjugate','Square_root'],['Integer','Normal_distribution','Complex_conjugate','Radius','Gaussian_integer'],['Divisor','Integer_factorization','Gaussian_integer','Normal_distribution','Function_(mathematics)'],['Riemann_zeta_function','Integer','Gaussian_integer','Divisor','Normal_distribution'],['Mathematical_optimization','Universe','Software_engineering','Scheduling_(computing)','Page_(computer_memory)']],
     [['Ellipse','Kinetic_energy','Momentum','Energy','Algorithm'],['Integer','Geometry','Momentum','Radian','Inscribed_angle'],['Geometry','Inverse_trigonometric_functions','Tangent','Integer','Square_root']],
     [['Optics','Croquet','Geometry','Momentum','Analogy'],['Kinetic_energy','Dot_product','Sine_and_cosine','Momentum','Magnitude_(astronomy)'],['Beam_(nautical)','Draft_(hull)','Light_cruiser','Port_and_starboard','Laser']],
-    [['Basel','Geometry','Lighthouse','Mathematics','Inverse-square_law'],['Polynomial','Integer','Magnitude_(astronomy)','Lighthouse','Complex_number'],['Lighthouse','Polynomial','Chord_(aeronautics)','Chord_(music)','Mathematician'],['Lighthouse','Lighthouse_keeper','Infinity','Mathematician','Arithmetic'],['Lighthouse','Sine_and_cosine','Chord_(aeronautics)','Clockwise','Integer'],['Blog','Betting_in_poker','Balvanera','Angle','Want']],
-    [['Ester', 'Glyceride', 'Vegetable_oil', 'Popeye', 'Candy_cigarette'], ['Ester', 'Glyceride', 'Popeye', 'Candy_cigarette', 'Candy'], ['Ester', 'Vegetable_oil', 'Olive_oil', 'Popeye', 'Candy_cigarette']]]
+    [['Basel','Geometry','Lighthouse','Mathematics','Inverse-square_law'],['Polynomial','Integer','Magnitude_(astronomy)','Lighthouse','Complex_number'],['Lighthouse','Polynomial','Chord_(aeronautics)','Chord_(music)','Mathematician'],['Lighthouse','Lighthouse_keeper','Infinity','Mathematician','Arithmetic'],['Lighthouse','Sine_and_cosine','Chord_(aeronautics)','Clockwise','Integer'],['Blog','Betting_in_poker','Balvanera','Angle','Want']]]
     #test = WikificationTest()
     #test.nonWebExecute('https://www.youtube.com/watch?v=8GPy_UMV-08', 300.0)
     
     print("start")
-    #관계 그래프 작성
-    cl, vvl = getRelGraph(r,vl)
-
-    print("insert in neo4j")
-    #uri = "neo4j+s://8a488d74.databases.neo4j.io"
-    uri = "neo4j+s://9bon.org:17687"
-    user = "neo4j"
-    #password = "nZjn1bV_6nEPqDMs6l4f5rAnOo81peh7osW0X5fjcVw"
-    password = "sunset-group"
-    app = App(uri, user, password)
-
-    #데이터 전체 삭제
-    app.delete_all_data()
-
-    #neo4j에 그래프 작성
-    app.create_graph(cl,vvl)
-    app.close()
+    insertIntoNeo4j(vl, r)
     print("end")
     
