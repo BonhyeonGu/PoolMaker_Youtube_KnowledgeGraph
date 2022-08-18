@@ -41,16 +41,8 @@ class ComponentExtractor:
             print("")
         f.close()
 
-    def urlToSplitQueue(self, splitSec, url:str):
+    def idToSplitQueue(self, splitSec, ytid:str):
         ret = queue.Queue()
-        
-        tmp = url.split('v=')[1]
-        ytid = ''
-        for char in tmp:
-            if char == '&':
-                break
-            ytid += char
-        
         nowSec = splitSec
         srt:list = YouTubeTranscriptApi.get_transcript(ytid, languages=['en', 'en-US'])
         sentense = ''
