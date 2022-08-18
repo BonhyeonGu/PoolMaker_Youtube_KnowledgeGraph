@@ -6,7 +6,7 @@ from util import Util
 from crawling import Crawling
 
 class FileIO():
-    def __init__(self, local = './'):
+    def __init__(self, local = 'C:/Users/8whwh/Git/Reasoning_over_Knowledge_Component_Streams/'):
         self.DEBUG = True
         self.SPLIT_PROCESS = 3 # +1
 
@@ -27,7 +27,7 @@ class FileIO():
         self.nameBack = local + 'backlinks/'
         self.namePr0den = local + 'pr0dens/'
 
-        self.nameDictFull = local + 'anchorRange_entDict_PR0numerator.pkl'
+        self.nameDictFull = local + 'anchorData.pkl'
         self.craw = Crawling()
         #self.m = Manager()
 
@@ -183,4 +183,9 @@ class FileIO():
             ret = pic.load(f)
         return ret
     
+    def callDictTitle2Id(self):
+        with open(self.nameTitleToID, 'rb') as f:
+            ret = pic.load(f)
+        return ret
+        
     #-------------------------------------------------------------------
