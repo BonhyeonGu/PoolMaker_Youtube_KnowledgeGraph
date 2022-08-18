@@ -274,6 +274,7 @@ def main():
         ids = inp.readlines()
     print("Extract start")
     for id in ids:
+        print("%s ..." % (id))
         ret.append(segmentExtract(CE, splitSec, keywordSize, hitBool, id))
     print("Extract end")
     print("DB Insert start")    
