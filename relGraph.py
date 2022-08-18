@@ -1,16 +1,13 @@
-import pickle
-from xmlrpc.client import boolean
-from cv2 import VideoCapture
 import numpy as np
-import networkx as nx
-import matplotlib.pyplot as plt
-from operator import itemgetter
-
+import queue
 from neo4j import GraphDatabase
 import logging
 from neo4j.exceptions import ServiceUnavailable
 
-from wikificationTest import WikificationTest
+from fileIO import FileIO
+from componentExtractor import ComponentExtractor
+from secret.secret import dbaddr, dbport, dbid, dbpw
+
 class vertex:
     def __init__(self, label:int, data:str, segment:int, serial:str):
         #label: 노드의 종류를 나타냄, 1:컴포넌트, 2:비디오 세그먼트, 3:유저
@@ -38,9 +35,8 @@ def getRelGraph(result:list, videoAdress:list):
     #videoAdress: 영상의 주소가 result에 들어있는 순서대로 저장되어있는 리스트
     #
     #딕셔너리 길이 = 16333244
-    with open("C:/Users/MY/.vscode/tt/Wikification_web/Wikification_web/ComTitleToId.pkl","rb") as inpf:
-        title2IdDict = pickle.load(inpf)
-    
+    title2IdDict = FileIO().callDictTitle2Id()
+
     #컴포넌트 개수는 딕셔너리 길이와 같다
     #아직 생성되지 않은 노드는 -1
     #최대 id크기 = 70355177
@@ -56,7 +52,6 @@ def getRelGraph(result:list, videoAdress:list):
     for video in result:
         videoList.append(list())
         for seg in video:
-            
             #리스트에 비디오 노드를 추가
             #node4j 테스트용으로 vidserial추가해서 그래프입력할때에 번호 알 수 있게 설정
             videoList[videoCount].append(vertex(2,videoAdress[videoCount],segCount,"v"+str(vidserial)))
@@ -67,7 +62,7 @@ def getRelGraph(result:list, videoAdress:list):
                 serial = title2IdDict[compo.encode("utf-8")]
                 if componentArr[serial] == -1:#노드 생성
                     #node4j 테스트용으로 시리얼번호 저장
-                    n = vertex(1,compo,0, "c"+str(len(componentList)))
+                    n = vertex(1, compo, 0, "c"+str(len(componentList)))
                     
                     #생성된 컴포넌트 노드에 비디오노드 연결
                     #컴포넌트 리스트의 인덱스값을 배열에 넣어준다
@@ -89,7 +84,6 @@ def getRelGraph(result:list, videoAdress:list):
     return componentList, videoList
 
 class App:
-    
     def __init__(self, uri, user, password):
         self.driver = GraphDatabase.driver(uri, auth=(user, password))
 
@@ -121,7 +115,7 @@ class App:
                     isExist = True
             
             if isExist:
-                continue;
+                continue
             query = "CREATE (c"+":KnowledgeComponent { data: $component_data }) "
             tx.run(query,component_data = component.data)
 
@@ -140,7 +134,7 @@ class App:
 
             
             if isExist:
-                continue;
+                continue
             query = "CREATE (v"+":Video { data: $video_data }) "
             tx.run(query,video_data = segmentList[0].data)
             for segment in segmentList:
@@ -166,7 +160,7 @@ class App:
                         if len(row) >0:
                             isExist = True
                     if isExist:
-                        continue;
+                        continue
                     query = (
                         "MATCH (s: Segment {data: $segment_data})-[:PartOf]->(v: Video {data: $video_address}), (c: KnowledgeComponent{data: $component_data })"
                         "CREATE (c)-[:AppearedIn]->(s)"
@@ -231,11 +225,9 @@ def insertIntoNeo4j(addressList, resultList):
     componentList, videoList = getRelGraph(resultList,addressList)
     print("insert into neo4j")
     #uri = "neo4j+s://8a488d74.databases.neo4j.io"
-    uri = "neo4j://9bon.org:17687"
-    user = "neo4j"
-    #password = "nZjn1bV_6nEPqDMs6l4f5rAnOo81peh7osW0X5fjcVw"
-    password = "sunset-group"
-    app = App(uri, user, password)
+    uri = "neo4j://%s:%s"%(dbaddr, dbport)
+    #dbpw = "nZjn1bV_6nEPqDMs6l4f5rAnOo81peh7osW0X5fjcVw"
+    app = App(uri, dbid, dbpw)  
 
     #데이터 전체 삭제
     #필요한 경우에만 활성화 시킬것
@@ -245,19 +237,48 @@ def insertIntoNeo4j(addressList, resultList):
     app.create_graph(componentList,videoList)
     app.close()
 
-if __name__ == '__main__':   
-    #vl: 영상의 id
-    vl = ['d-o3eB9sfls','NaL_Cb42WyY','jsYwFizhncE','brU5yLm9DZM','8GPy_UMV-08']
-    #r: 각 영상별 세그먼트별 knowledge component리스트(3차원 리스트)
-    r = [[['Basel','Lighthouse','Retina','Leonhard_Euler','Geometry'],['Lighthouse','Hypotenuse','Tangent','Circumference','Mathematician'],['Lighthouse','Geometry','Circumference','Hypotenuse','Circle'],['Lighthouse','Geometry','Integer','Algebra','Animation']],
-    [['Riemann_zeta_function','Integer','Calculus','Radius','Gottfried_Wilhelm_Leibniz'],['Integer','Gaussian_integer','Normal_distribution','Complex_conjugate','Magnitude_(astronomy)'],['Integer','Normal_distribution','Gaussian_integer','Complex_conjugate','Square_root'],['Integer','Normal_distribution','Complex_conjugate','Radius','Gaussian_integer'],['Divisor','Integer_factorization','Gaussian_integer','Normal_distribution','Function_(mathematics)'],['Riemann_zeta_function','Integer','Gaussian_integer','Divisor','Normal_distribution'],['Mathematical_optimization','Universe','Software_engineering','Scheduling_(computing)','Page_(computer_memory)']],
-    [['Ellipse','Kinetic_energy','Momentum','Energy','Algorithm'],['Integer','Geometry','Momentum','Radian','Inscribed_angle'],['Geometry','Inverse_trigonometric_functions','Tangent','Integer','Square_root']],
-    [['Optics','Croquet','Geometry','Momentum','Analogy'],['Kinetic_energy','Dot_product','Sine_and_cosine','Momentum','Magnitude_(astronomy)'],['Beam_(nautical)','Draft_(hull)','Light_cruiser','Port_and_starboard','Laser']],
-    [['Basel','Geometry','Lighthouse','Mathematics','Inverse-square_law'],['Polynomial','Integer','Magnitude_(astronomy)','Lighthouse','Complex_number'],['Lighthouse','Polynomial','Chord_(aeronautics)','Chord_(music)','Mathematician'],['Lighthouse','Lighthouse_keeper','Infinity','Mathematician','Arithmetic'],['Lighthouse','Sine_and_cosine','Chord_(aeronautics)','Clockwise','Integer'],['Blog','Betting_in_poker','Balvanera','Angle','Want']]]
-    #test = WikificationTest()
-    #test.nonWebExecute('https://www.youtube.com/watch?v=8GPy_UMV-08', 300.0)
-    
-    print("start")
-    insertIntoNeo4j(vl, r)
-    print("end")
-    
+#유튜브 id를 받으면 세그먼트, 컴포넌트로 이루어진 2차원 리스트를 반환함
+def segmentExtract(CE:ComponentExtractor, splitSec, keywordSize, hitBool, id):
+    ret = []
+    sett:queue.Queue = CE.idToSplitQueue(splitSec, id)
+    #c = 1
+    while sett.qsize() != 0:
+        subInSec = sett.get()
+        #---------------------------------------------------------
+        inp = CE.preProcess(subInSec)
+        #print("At # %d segment, (%d ~ %d minutes), %d words are collected. Start..." %(c, (splitSec * c - splitSec) / 60, (splitSec * c) / 60, len(inp)))
+        #---------------------------------------------------------
+        g = CE.graphProcess(inp)
+        result = g.getAnnotation(keywordSize, hitBool)
+        #---------------------------------------------------------
+        #print("~Completed")
+        #---------------------------------------------------------
+        retTemp = []
+        for i in range(len(result)):
+            print("%d : %s"%(i + 1, result[i].name))
+            retTemp.append(result[i].name)
+        ret.append(retTemp)
+        #---------------------------------------------------------
+        #c += 1
+    return ret
+
+def main():
+    CE = ComponentExtractor()
+    #-----------------------------------
+    splitSec = 300
+    keywordSize = 5
+    hitBool = True
+    #-----------------------------------
+    ret = []
+    with open("./input.txt","r") as inp:
+        ids = inp.readlines()
+    print("Extract start")
+    for id in ids:
+        ret.append(segmentExtract(CE, splitSec, keywordSize, hitBool, id))
+    print("Extract end")
+    print("DB Insert start")    
+    insertIntoNeo4j(ids, ret)
+    print("DB Insert end")
+
+if __name__ == '__main__':
+    main()
