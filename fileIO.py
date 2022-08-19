@@ -6,7 +6,7 @@ from util import Util
 from crawling import Crawling
 
 class FileIO():
-    def __init__(self, local = 'C:/Users/8whwh/Git/Reasoning_over_Knowledge_Component_Streams/'):
+    def __init__(self, local = './'):
         self.DEBUG = True
         self.SPLIT_PROCESS = 3 # +1
 
