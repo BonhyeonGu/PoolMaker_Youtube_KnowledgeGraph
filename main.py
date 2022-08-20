@@ -271,10 +271,10 @@ def main():
     #-----------------------------------
     ret = []
     with open("./input.txt","r") as inp:
-        ids = inp.readlines()
+        ids = inp.read().split('\n')
     print("Extract start")
     for id in ids:
-        print("%s ..." % (id))
+        print("%s ..." % (id.strip()))
         ret.append(segmentExtract(CE, splitSec, keywordSize, hitBool, id))
     print("Extract end")
     print("DB Insert start")    
