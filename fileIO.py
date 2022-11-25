@@ -6,7 +6,8 @@ from util import Util
 from crawling import Crawling
 
 class FileIO():
-    def __init__(self, local = './'):
+    #def __init__(self, local = './'):
+    def __init__(self, local = '../rokcs/'):
         self.DEBUG = True
         self.SPLIT_PROCESS = 3 # +1
 
