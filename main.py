@@ -274,6 +274,8 @@ def main():
         ids = inp.read().split('\n')
     print("Extract start")
     for id in ids:
+        if id == '':
+            break
         print("%s ..." % (id.strip()))
         ret.append(segmentExtract(CE, splitSec, keywordSize, hitBool, id))
     print("Extract end")
