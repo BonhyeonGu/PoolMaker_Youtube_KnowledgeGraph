@@ -100,7 +100,7 @@ class App:
         return rets
     #구본현이 수정함-----------------------------------------------------
 
-    def create_graph(self, componentList, videoList):
+    def create_graph(self, componentList, videoList, debug:bool = False):
         with self.driver.session(database="neo4j") as session:
             # Write transactions allow the driver to handle retries and transient errors
 
@@ -113,10 +113,10 @@ class App:
             #구본현이 수정함-----------------------------------------------------
 
             result = session.write_transaction(
-                self._create_graph, componentList, realVideoList)
+                self._create_graph, componentList, realVideoList, debug)
             
     @staticmethod
-    def _create_graph(tx, componentList, videoList):
+    def _create_graph(tx, componentList, videoList, debug:bool = False):
         #자체제작 함수
 
         #모든 컴포넌트 노드 생성
@@ -189,7 +189,8 @@ class App:
                     #비디오노드와 컴포넌트 노드 연결시키면서 콘솔창에 출력
                     try:
                         for row in result:
-                            print("Created relationship between video:{v}, segment:{s}, component:{c}".format(
+                            if debug:
+                                print("Created relationship between video:{v}, segment:{s}, component:{c}".format(
                             s=row["s"]["data"], c=row["c"]["data"], v=row["v"]["data"]))
                     
                     # Capture any errors along with the query and data for traceability
@@ -198,21 +199,6 @@ class App:
                             query=query, exception=exception))
                         raise
 
-    def find_person(self, person_name):
-        with self.driver.session(database="neo4j") as session:
-            result = session.read_transaction(self._find_and_return_person, person_name)
-            for row in result:
-                print("Found person: {row}".format(row=row))
-
-    @staticmethod
-    def _find_and_return_person(tx, person_name):
-        query = (
-            "MATCH (p:Person) "
-            "WHERE p.name = $person_name "
-            "RETURN p.name AS name"
-        )
-        result = tx.run(query, person_name=person_name)
-        return [row["name"] for row in result]
 
     def delete_all_data(self):
         with self.driver.session(database="neo4j") as session:
@@ -243,7 +229,7 @@ def insertIntoNeo4j(addressList, resultList):
     #addressList: 영상의 id의 리스트
     #resultList: 각 영상별 세그먼트별 knowledge component리스트(3차원 리스트)
     componentList, videoList = getRelGraph(resultList,addressList)
-    print("insert into neo4j")
+    #print("insert into neo4j")
     #uri = "neo4j+s://8a488d74.databases.neo4j.io"
     uri = "neo4j://%s:%s"%(dbaddr, dbport)
     #dbpw = "nZjn1bV_6nEPqDMs6l4f5rAnOo81peh7osW0X5fjcVw"
@@ -258,7 +244,7 @@ def insertIntoNeo4j(addressList, resultList):
     app.close()
 
 #유튜브 id를 받으면 세그먼트, 컴포넌트로 이루어진 2차원 리스트를 반환함
-def segmentExtract(CE:ComponentExtractor, splitSec, keywordSize, hitBool, id):
+def segmentExtract(CE:ComponentExtractor, splitSec, keywordSize, hitBool, id, debug:bool=False):
     ret = []
     sett:queue.Queue = CE.idToSplitQueue(splitSec, id)
     #c = 1
@@ -269,13 +255,14 @@ def segmentExtract(CE:ComponentExtractor, splitSec, keywordSize, hitBool, id):
         #print("At # %d segment, (%d ~ %d minutes), %d words are collected. Start..." %(c, (splitSec * c - splitSec) / 60, (splitSec * c) / 60, len(inp)))
         #---------------------------------------------------------
         g = CE.graphProcess(inp)
-        result = g.getAnnotation(keywordSize, hitBool)
+        result = g.getAnnotation(keywordSize, hitBool,debug=debug)
         #---------------------------------------------------------
         #print("~Completed")
         #---------------------------------------------------------
         retTemp = []
         for i in range(len(result)):
-            print("%d : %s"%(i + 1, result[i].name))
+            if debug:
+                print("%d : %s"%(i + 1, result[i].name))
             retTemp.append(result[i].name)
         ret.append(retTemp)
         #---------------------------------------------------------
