@@ -91,11 +91,29 @@ class App:
         # Don't forget to close the driver connection when you are finished with it
         self.driver.close()
 
+    #구본현이 수정함, 디비에 존재하는 비디오 아이디를 들고옴
+    def getVideos(self, tx):
+        rets = []
+        result = tx.run("MATCH (n : Video) RETURN (n)")
+        for record in result:
+            rets.append(record[0]["data"])
+        return rets
+    #구본현이 수정함-----------------------------------------------------
+
     def create_graph(self, componentList, videoList):
         with self.driver.session(database="neo4j") as session:
             # Write transactions allow the driver to handle retries and transient errors
+
+            #구본현이 수정함, 비디오 입력을 넣기 전에 먼저 디비에 있는 아이디를 걸러냄
+            haveIds = session.read_transaction(self.getVideos)
+            realVideoList = []
+            for i in videoList:
+                if i not in haveIds:
+                    realVideoList.append(i)
+            #구본현이 수정함-----------------------------------------------------
+
             result = session.write_transaction(
-                self._create_graph, componentList, videoList)
+                self._create_graph, componentList, realVideoList)
             
     @staticmethod
     def _create_graph(tx, componentList, videoList):
@@ -219,6 +237,8 @@ class App:
         )
         tx.run(query)
 
+    
+
 def insertIntoNeo4j(addressList, resultList):
     #addressList: 영상의 id의 리스트
     #resultList: 각 영상별 세그먼트별 knowledge component리스트(3차원 리스트)
@@ -231,7 +251,7 @@ def insertIntoNeo4j(addressList, resultList):
 
     #데이터 전체 삭제
     #필요한 경우에만 활성화 시킬것
-    app.delete_all_data()
+    ##app.delete_all_data()
 
     #neo4j에 그래프 작성
     app.create_graph(componentList,videoList)
